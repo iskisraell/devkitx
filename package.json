@@ -1,0 +1,54 @@
+{
+  "name": "devkitx",
+  "version": "1.0.0",
+  "description": "Developer toolkit CLI for modern web development with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more",
+  "author": "Israel Toledo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iskisraell/devkitx.git"
+  },
+  "homepage": "https://github.com/iskisraell/devkitx#readme",
+  "bugs": {
+    "url": "https://github.com/iskisraell/devkitx/issues"
+  },
+  "keywords": [
+    "cli",
+    "developer-tools",
+    "nextjs",
+    "vite",
+    "turborepo",
+    "convex",
+    "supabase",
+    "tailwindcss",
+    "shadcn-ui",
+    "monorepo",
+    "project-generator"
+  ],
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "devkitx": "./src/index.ts",
+    "dx": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile dist/dx.exe",
+    "build:all": "bun run build && copy dist\\dx.exe dist\\devkitx.exe"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.1",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "yaml": "^2.7.1",
+    "open": "^10.1.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
