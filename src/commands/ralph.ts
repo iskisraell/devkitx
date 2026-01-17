@@ -1297,7 +1297,15 @@ async function installRalphy() {
   if (!response.ok) {
     throw new Error(`Failed to download: ${response.statusText}`);
   }
-  const script = await response.text();
+  let script = await response.text();
+
+  // Apply MSYS2 fix: disable set -euo pipefail for Windows Git Bash compatibility
+  console.log(chalk.gray("  Applying MSYS2 compatibility fix..."));
+  script = script.replace(
+    /^set -euo pipefail$/m,
+    "# set -euo pipefail  # Disabled for MSYS2/Git Bash Windows compatibility",
+  );
+
   await Bun.write(RALPHY_SCRIPT, script);
   console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
 
