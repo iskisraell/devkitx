@@ -441,14 +441,10 @@ async function createSingleProject(
   options: { skipInstall?: boolean; skipGit?: boolean },
 ): Promise<void> {
   const { name, packageManager, theme, font, backend, stateManager } = config;
+  const parentDir = join(projectPath, "..");
 
-  // Step 1: Create project directory first to avoid shadcn scanning parent dirs
+  // Step 1: Run shadcn create command
   console.log(chalk.gray("  [1/6] Creating project with shadcn..."));
-
-  // Create project directory first to avoid shadcn scanning user directory
-  if (!existsSync(projectPath)) {
-    mkdirSync(projectPath, { recursive: true });
-  }
 
   // Check if we need workaround for Bun on Windows with spaces in path
   const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
@@ -464,20 +460,27 @@ async function createSingleProject(
     );
   }
 
+  // Set HOME to a temp directory to avoid shadcn scanning user directory
+  const originalHome = process.env.HOME;
+  process.env.HOME = join(projectPath, "..", ".temp_home");
+
   const createCmd = buildShadcnCreateCommand({
     packageManager: createPm,
     template: shadcnTemplate,
     theme,
     font,
-    projectName: ".", // Use "." to create in current directory
+    projectName: name,
   });
 
   const createProc = Bun.spawn(createCmd, {
-    cwd: projectPath, // Run from within the project directory
+    cwd: parentDir,
     stdout: "inherit",
     stderr: "inherit",
   });
   await createProc.exited;
+
+  // Restore HOME
+  process.env.HOME = originalHome;
 
   if (!existsSync(projectPath)) {
     throw new Error("shadcn create failed - project directory not created");
@@ -562,11 +565,6 @@ async function createMonorepoProject(
   console.log(chalk.gray("  [2/8] Creating web app with shadcn..."));
   const webPath = join(projectPath, "apps", "web");
 
-  // Create web directory first to avoid shadcn scanning parent dirs
-  if (!existsSync(webPath)) {
-    mkdirSync(webPath, { recursive: true });
-  }
-
   // Check if we need workaround for Bun on Windows with spaces in path
   const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
     projectPath,
@@ -581,20 +579,27 @@ async function createMonorepoProject(
     );
   }
 
+  // Set HOME to a temp directory to avoid shadcn scanning user directory
+  const originalHome = process.env.HOME;
+  process.env.HOME = join(projectPath, "..", ".temp_home");
+
   const createCmd = buildShadcnCreateCommand({
     packageManager: createPm,
     template: "next",
     theme,
     font,
-    projectName: ".", // Use "." to create in current directory
+    projectName: "web",
   });
 
   const createProc = Bun.spawn(createCmd, {
-    cwd: webPath, // Run from within the web directory
+    cwd: join(projectPath, "apps"),
     stdout: "inherit",
     stderr: "inherit",
   });
   await createProc.exited;
+
+  // Restore HOME
+  process.env.HOME = originalHome;
   console.log(chalk.green("  [2/8] ✓ Web app created"));
 
   // Step 3: Install dependencies at root
