@@ -18,8 +18,9 @@ import { cleanCommand } from "./commands/clean.js";
 import { statusCommand } from "./commands/status.js";
 import { openCommand } from "./commands/open.js";
 import { goCommand } from "./commands/go.js";
+import { ralphCommand } from "./commands/ralph.js";
 
-const VERSION = "1.0.0";
+const VERSION = "0.1.1-beta";
 
 const program = new Command();
 
@@ -56,6 +57,7 @@ program.addCommand(cleanCommand);
 program.addCommand(statusCommand);
 program.addCommand(openCommand);
 program.addCommand(goCommand);
+program.addCommand(ralphCommand);
 
 // Default action - show help with banner
 program.action(() => {
@@ -82,6 +84,9 @@ program.action(() => {
   console.log();
   console.log(chalk.white("Other Commands:"));
   console.log(chalk.cyan("  docs <topic>") + "    Open documentation");
+  console.log(
+    chalk.cyan("  ralph [cmd]") + "     Ralph Loop setup and PRD management",
+  );
   console.log();
   console.log(
     chalk.gray("Run") +

@@ -13,6 +13,7 @@ import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { join, basename } from "path";
 import { existsSync, mkdirSync, rmSync } from "fs";
+import { platform } from "os";
 import {
   createProjectConfig,
   writeProjectConfig,
@@ -398,6 +399,38 @@ export const createCommand = new Command("create")
   });
 
 // ============================================================================
+// WINDOWS BUN WORKAROUND
+// ============================================================================
+
+/**
+ * Check if we need to use pnpm workaround for Bun on Windows
+ * Bun has issues with paths containing spaces on Windows
+ */
+function needsBunWorkaround(
+  projectPath: string,
+  packageManager: PackageManager,
+): boolean {
+  if (packageManager !== "bun") return false;
+  if (platform() !== "win32") return false;
+  // Check if path contains spaces
+  return projectPath.includes(" ");
+}
+
+/**
+ * Get the package manager to use for shadcn create
+ * Uses pnpm as fallback when Bun has issues with spaces on Windows
+ */
+function getShadcnCreatePackageManager(
+  projectPath: string,
+  requestedPm: PackageManager,
+): { pm: PackageManager; usingWorkaround: boolean } {
+  if (needsBunWorkaround(projectPath, requestedPm)) {
+    return { pm: "pnpm", usingWorkaround: true };
+  }
+  return { pm: requestedPm, usingWorkaround: false };
+}
+
+// ============================================================================
 // SINGLE PROJECT CREATION (Next.js or Vite)
 // ============================================================================
 
@@ -413,8 +446,22 @@ async function createSingleProject(
   // Step 1: Run shadcn create command
   console.log(chalk.gray("  [1/6] Creating project with shadcn..."));
 
-  const createCmd = buildShadcnCreateCommand({
+  // Check if we need workaround for Bun on Windows with spaces in path
+  const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
+    projectPath,
     packageManager,
+  );
+
+  if (usingWorkaround) {
+    console.log(
+      chalk.yellow(
+        "  ⚠ Using pnpm for initial setup (Bun has issues with spaces in paths on Windows)",
+      ),
+    );
+  }
+
+  const createCmd = buildShadcnCreateCommand({
+    packageManager: createPm,
     template: shadcnTemplate,
     theme,
     font,
@@ -511,8 +558,22 @@ async function createMonorepoProject(
   console.log(chalk.gray("  [2/8] Creating web app with shadcn..."));
   const webPath = join(projectPath, "apps", "web");
 
-  const createCmd = buildShadcnCreateCommand({
+  // Check if we need workaround for Bun on Windows with spaces in path
+  const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
+    projectPath,
     packageManager,
+  );
+
+  if (usingWorkaround) {
+    console.log(
+      chalk.yellow(
+        "  ⚠ Using pnpm for initial setup (Bun has issues with spaces in paths on Windows)",
+      ),
+    );
+  }
+
+  const createCmd = buildShadcnCreateCommand({
+    packageManager: createPm,
     template: "next",
     theme,
     font,

@@ -1,7 +1,7 @@
 {
   "name": "devkitx",
-  "version": "1.0.0",
-  "description": "Developer toolkit CLI for modern web development with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more",
+  "version": "0.1.1-beta",
+  "description": "Developer toolkit CLI for modern web development with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more. Includes Ralphy integration for autonomous AI coding loops.",
   "author": "Israel Toledo",
   "license": "MIT",
   "repository": {
@@ -23,7 +23,11 @@
     "tailwindcss",
     "shadcn-ui",
     "monorepo",
-    "project-generator"
+    "project-generator",
+    "ralphy",
+    "ai-coding",
+    "autonomous-agents",
+    "opencode"
   ],
   "type": "module",
   "main": "src/index.ts",

@@ -73,6 +73,19 @@ dx deploy                 # Deploy to Vercel + backend
 dx env                    # Manage environment variables
 ```
 
+### Ralphy - Autonomous AI Coding
+
+```powershell
+dx ralph init                     # Initialize project for Ralphy
+dx ralph install                  # Install ralphy.sh (one time)
+dx ralph new <name>               # Create a new PRD file
+dx ralph new -y <name>            # Create YAML task file
+dx ralph run                      # Run Ralphy with OpenCode
+dx ralph run --parallel           # Run with parallel agents
+dx ralph run --create-pr          # Auto-create pull requests
+dx ralph status                   # Check Ralphy setup status
+```
+
 ## Features
 
 - **One-command project creation** - Scaffolds complete projects with all configs
@@ -228,6 +241,160 @@ stack:
 - [ ] `dx lint` - Lint and format code
 - [ ] Custom templates
 - [ ] Plugin system
+
+## Ralphy Integration
+
+DevKitX includes built-in support for **Ralphy** - an autonomous bash script that runs AI coding agents (OpenCode, Claude Code, Codex, Cursor) in a loop until your PRD is complete.
+
+### What is Ralphy?
+
+Ralphy transforms AI coding assistants from single-pass tools into persistent, self-correcting development machines. It supports:
+
+- **Parallel execution** - Multiple agents working simultaneously via git worktrees
+- **Branch-per-task** - Automatic feature branches for each task
+- **Auto-PRs** - Automatically create pull requests when tasks complete
+- **Multiple engines** - OpenCode (default), Claude Code, Codex, Cursor
+- **YAML task dependencies** - Group tasks that can run in parallel
+
+### Quick Start
+
+```powershell
+# 1. Install Ralphy (one time)
+dx ralph install
+
+# 2. Initialize your project
+dx ralph init
+
+# 3. Create a PRD for your feature
+dx ralph new my-feature
+
+# 4. Edit the PRD with your requirements
+code docs/prd/my-feature.prd.md
+
+# 5. Run Ralphy!
+dx ralph run --prd docs/prd/my-feature.prd.md
+```
+
+### Run Options
+
+```powershell
+# Basic run with default PRD.md
+dx ralph run
+
+# Run specific PRD
+dx ralph run --prd docs/prd/my-feature.prd.md
+
+# Parallel execution (3 agents in git worktrees)
+dx ralph run --parallel
+
+# More parallel agents
+dx ralph run --parallel --max-parallel 5
+
+# Feature branch workflow with auto PRs
+dx ralph run --branch-per-task --create-pr
+
+# Fast mode (skip tests and linting)
+dx ralph run --fast
+
+# Dry run to preview what would happen
+dx ralph run --dry-run
+
+# YAML task file with dependencies
+dx ralph run --yaml tasks.yaml
+```
+
+### Direct Shell Access
+
+You can also run ralphy.sh directly from any Git Bash terminal:
+
+```bash
+# Add to PATH (one time)
+export PATH="$HOME/.ralphy:$PATH"
+
+# Then from any project
+ralphy --opencode --prd PRD.md
+ralphy --opencode --parallel --max-parallel 4
+ralphy --opencode --branch-per-task --create-pr
+```
+
+### What Gets Created
+
+When you run `dx ralph init`, these files are created:
+
+```
+your-project/
+├── AGENTS.md              # AI agent instructions and project context
+├── PRD.md                 # Default PRD file
+├── progress.txt           # Progress log (required by ralphy.sh)
+├── .ralph/
+│   └── signs.md           # Project-specific rules for Ralph
+└── docs/
+    └── prd/               # PRD files directory
+```
+
+### PRD Structure
+
+Product Requirement Documents (PRDs) are the key to effective Ralphy loops:
+
+```markdown
+# PRD: Feature Name
+
+## TL;DR
+
+- One sentence: what are we shipping?
+
+## Goal
+
+- What outcome should exist when done?
+
+## Constraints
+
+- What should NOT be changed
+
+## Acceptance Criteria
+
+- [ ] Observable success conditions
+- [ ] Edge cases you care about
+
+## Verification
+
+- Commands to prove it works
+
+## Progress
+
+- Updated by Ralphy after each iteration
+```
+
+### YAML Task Files
+
+For parallel execution with dependencies, use YAML:
+
+```yaml
+tasks:
+  # Group 1: Foundation (runs first)
+  - title: "Create user model"
+    completed: false
+    parallel_group: 1
+
+  - title: "Create post model"
+    completed: false
+    parallel_group: 1
+
+  # Group 2: Depends on group 1
+  - title: "Add user-post relationships"
+    completed: false
+    parallel_group: 2
+```
+
+### Ralph's Commandments
+
+1. **THOU SHALT NOT STOP** - Complete the task before stopping
+2. **THOU SHALT LOOK FOR SIGNS** - Read .ralph/signs.md for project rules
+3. **THOU SHALT BE DETERMINISTIC** - Be reliably persistent
+4. **THOU SHALT TUNE NOT BLAME** - When failing, tune prompts not tools
+5. **THOU SHALT ITERATE** - Every failure is a learning opportunity
+
+Learn more: https://github.com/michaelshimeles/ralphy
 
 ## Contributing
 
