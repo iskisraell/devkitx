@@ -33,7 +33,9 @@ if ($isAdmin) {
 # Configuration
 $DEVKITX_HOME = "$env:USERPROFILE\.devkitx"
 $DEVKITX_BIN = "$DEVKITX_HOME\bin"
+$RALPHY_HOME = "$env:USERPROFILE\.ralphy"
 $REPO_URL = "https://github.com/iskisraell/devkitx"
+$RALPHY_REPO_URL = "https://github.com/michaelshimeles/ralphy"
 $RELEASE_URL = "$REPO_URL/releases/latest/download"
 
 # Create directories
@@ -42,6 +44,154 @@ New-Item -ItemType Directory -Force -Path $DEVKITX_HOME | Out-Null
 New-Item -ItemType Directory -Force -Path $DEVKITX_BIN | Out-Null
 New-Item -ItemType Directory -Force -Path "$DEVKITX_HOME\backups" | Out-Null
 Write-Success "Directories created"
+
+# =============================================================================
+# RALPHY SETUP (Autonomous AI Coding Loops)
+# =============================================================================
+Write-Step "Setting up Ralphy (Autonomous AI Coding)..."
+
+# Create Ralphy directory
+New-Item -ItemType Directory -Force -Path $RALPHY_HOME | Out-Null
+
+# Download ralphy.sh
+$ralphyShPath = "$RALPHY_HOME\ralphy.sh"
+try {
+    Write-Step "Downloading ralphy.sh..."
+    Invoke-WebRequest -Uri "$RALPHY_REPO_URL/raw/main/ralphy.sh" -OutFile $ralphyShPath -UseBasicParsing
+    # Make it executable
+    $content = Get-Content $ralphyShPath -Raw
+    if ($content -notmatch "#!/usr/bin/env bash") {
+        "#!/usr/bin/env bash`n" + $content | Set-Content $ralphyShPath
+    }
+    Write-Success "Downloaded ralphy.sh"
+} catch {
+    Write-Err "Failed to download ralphy.sh: $_"
+    Write-Host "  Ralphy features will not be available" -ForegroundColor Gray
+}
+
+# Create PowerShell wrapper
+$ralphyPs1Path = "$RALPHY_HOME\ralphy.ps1"
+$ralphyPs1Content = @'
+<#
+.SYNOPSIS
+    Ralphy - Windows wrapper for ralphy.sh
+.DESCRIPTION
+    Runs autonomous AI coding loops using OpenCode as the default engine
+#>
+[CmdletBinding()]
+param(
+    [Alias("p")]
+    [string]$Prd = "PRD.md",
+    [switch]$Parallel,
+    [int]$MaxParallel = 3,
+    [switch]$Fast,
+    [switch]$BranchPerTask,
+    [switch]$CreatePr,
+    [switch]$DraftPr,
+    [ValidateSet("opencode", "claude", "codex", "cursor")]
+    [string]$Engine = "opencode",
+    [int]$MaxIterations = 0,
+    [switch]$DryRun,
+    [Alias("yaml")]
+    [string]$YamlFile,
+    [string]$Github,
+    [string]$GithubLabel,
+    [switch]$Help
+)
+
+if ($Help) {
+    Get-Help $MyInvocation.MyCommand.Path -Detailed
+    exit 0
+}
+
+# Find Git Bash
+$gitBashPaths = @(
+    "$env:ProgramFiles\Git\bin\bash.exe",
+    "$env:ProgramFiles(x86)\Git\bin\bash.exe",
+    "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe",
+    "C:\Git\bin\bash.exe"
+)
+$bashExe = $gitBashPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $bashExe) {
+    Write-Host "ERROR: Git Bash not found. Please install Git for Windows." -ForegroundColor Red
+    exit 1
+}
+
+# Find ralphy.sh
+$ralphyScript = "$env:USERPROFILE\.ralphy\ralphy.sh"
+if (-not (Test-Path $ralphyScript)) {
+    Write-Host "ERROR: ralphy.sh not found. Run: dx ralph install" -ForegroundColor Red
+    exit 1
+}
+
+# Build arguments
+$args = @()
+switch ($Engine) {
+    "opencode" { $args += "--opencode" }
+    "claude"   { $args += "--claude" }
+    "codex"    { $args += "--codex" }
+    "cursor"   { $args += "--cursor" }
+}
+
+if ($YamlFile) { $args += "--yaml", $YamlFile }
+elseif ($Github) { $args += "--github", $Github; if ($GithubLabel) { $args += "--github-label", $GithubLabel } }
+else { $args += "--prd", $Prd }
+
+if ($Parallel) { $args += "--parallel", "--max-parallel", $MaxParallel }
+if ($Fast) { $args += "--fast" }
+if ($BranchPerTask) { $args += "--branch-per-task" }
+if ($CreatePr) { $args += "--create-pr" }
+if ($DraftPr) { $args += "--draft-pr" }
+if ($MaxIterations -gt 0) { $args += "--max-iterations", $MaxIterations }
+if ($DryRun) { $args += "--dry-run" }
+
+$unixScript = $ralphyScript -replace '\\', '/' -replace '^C:', '/c'
+$argString = $args -join " "
+
+Write-Host ""
+Write-Host "  RALPHY - Autonomous AI Coding Loop" -ForegroundColor Cyan
+Write-Host "  Engine: $Engine | PRD: $(if ($YamlFile) { $YamlFile } else { $Prd })" -ForegroundColor DarkGray
+if ($Parallel) { Write-Host "  Mode: Parallel ($MaxParallel agents)" -ForegroundColor DarkGray }
+Write-Host ""
+
+& $bashExe -c "$unixScript $argString"
+exit $LASTEXITCODE
+'@
+$ralphyPs1Content | Out-File -FilePath $ralphyPs1Path -Encoding UTF8 -Force
+Write-Success "Created ralphy.ps1 wrapper"
+
+# Create batch wrapper for PATH
+$ralphyCmdPath = "$RALPHY_HOME\ralphy.cmd"
+"@powershell -ExecutionPolicy Bypass -File `"%USERPROFILE%\.ralphy\ralphy.ps1`" %*" | Out-File -FilePath $ralphyCmdPath -Encoding ASCII -Force
+Write-Success "Created ralphy.cmd wrapper"
+
+# Add ralphy to PATH
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$RALPHY_HOME*") {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$RALPHY_HOME", "User")
+    Write-Success "Added ralphy to PATH"
+} else {
+    Write-Success "Ralphy already in PATH"
+}
+
+# Update profile with ralph aliases
+Write-Step "Adding ralph aliases to profile..."
+$ralphyAliases = @'
+
+# Ralphy - Autonomous AI Coding
+# Docs: https://github.com/michaelshimeles/ralphy
+function ralph { 
+    param([string]$args)
+    if ($args) { 
+        "$env:USERPROFILE\.ralphy\ralphy.cmd $args" | Invoke-Expression 
+    } else { 
+        "$env:USERPROFILE\.ralphy\ralphy.cmd" 
+    } 
+}
+Set-Alias -Name ralph -Value "$env:USERPROFILE\.ralphy\ralphy.cmd" -Option AllScope -ErrorAction SilentlyContinue
+'@
+Write-Success "Ralphy setup complete"
 
 # Check for Bun
 Write-Step "Checking for Bun..."
@@ -162,11 +312,15 @@ function pd { pnpm dev }
 function pb { pnpm build }
 function pi { pnpm install }
 
+# Ralphy - Autonomous AI Coding (loaded from ralphy.ps1 wrapper)
+# Run: dx ralph help --export for full documentation
+
 # Welcome message (only in interactive sessions)
 if ($Host.UI.RawUI.WindowTitle -and -not $env:DEVKITX_QUIET) {
     Write-Host ""
     Write-Host " DevKitX Developer Environment" -ForegroundColor Cyan
     Write-Host " Type 'dx' for commands, 'go' to switch projects" -ForegroundColor DarkGray
+    Write-Host " Ralphy: dx ralph help | dx ralph run --help" -ForegroundColor DarkGray
     Write-Host ""
 }
 '@
@@ -238,5 +392,13 @@ Write-Host ""
 Write-Host "  3. View all commands:" -ForegroundColor Gray
 Write-Host "     dx --help" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "  Ralphy - Autonomous AI Coding:" -ForegroundColor White
+Write-Host "     dx ralph help           # Full documentation" -ForegroundColor Cyan
+Write-Host "     dx ralph init           # Initialize project" -ForegroundColor Cyan
+Write-Host "     dx ralph install        # Install ralphy.sh" -ForegroundColor Cyan
+Write-Host "     dx ralph run            # Run Ralphy loop" -ForegroundColor Cyan
+Write-Host "     dx ralph run --parallel # Parallel agents" -ForegroundColor Cyan
+Write-Host ""
 Write-Host "  Documentation: https://github.com/iskisraell/devkitx" -ForegroundColor DarkGray
+Write-Host "  Ralphy Docs:   https://github.com/michaelshimeles/ralphy" -ForegroundColor DarkGray
 Write-Host ""
