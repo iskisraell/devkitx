@@ -1,13 +1,25 @@
 # DevKitX
 
-A powerful CLI toolkit for modern web development. Create, manage, and deploy projects with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more.
+A powerful CLI toolkit for modern web development with built-in **Ralphy** autonomous AI coding support. Create, manage, and deploy projects with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more.
 
 ```
 ╔═══════════════════════════════════════════╗
 ║  DevKitX - Developer Toolkit CLI          ║
-║  v1.0.0                                   ║
+║  v0.1.1-beta (Ralphy Support)             ║
 ╚═══════════════════════════════════════════╝
 ```
+
+## ⭐ What's New in v0.1.1-beta
+
+**Ralphy Integration** - Autonomous AI Coding Loops
+
+- Run AI agents in loops until PRD completion
+- Parallel execution via git worktrees
+- Auto branch/PR creation
+- YAML task files for dependency management
+- Full documentation with `dx ralph help --export`
+
+[Changelog →](https://github.com/iskisraell/devkitx/releases)
 
 ## Quick Install (Windows)
 
@@ -213,8 +225,8 @@ DevKitX projects are configured via `project.yaml`:
 
 ```yaml
 name: my-app
-version: 1.0.0
-created: 2025-01-04
+version: 0.1.1-beta
+created: 2025-01-17
 
 stack:
   monorepo: true
