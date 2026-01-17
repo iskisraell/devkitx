@@ -441,10 +441,14 @@ async function createSingleProject(
   options: { skipInstall?: boolean; skipGit?: boolean },
 ): Promise<void> {
   const { name, packageManager, theme, font, backend, stateManager } = config;
-  const parentDir = join(projectPath, "..");
 
-  // Step 1: Run shadcn create command
+  // Step 1: Create project directory first to avoid shadcn scanning parent dirs
   console.log(chalk.gray("  [1/6] Creating project with shadcn..."));
+
+  // Create project directory first to avoid shadcn scanning user directory
+  if (!existsSync(projectPath)) {
+    mkdirSync(projectPath, { recursive: true });
+  }
 
   // Check if we need workaround for Bun on Windows with spaces in path
   const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
@@ -465,11 +469,11 @@ async function createSingleProject(
     template: shadcnTemplate,
     theme,
     font,
-    projectName: name,
+    projectName: ".", // Use "." to create in current directory
   });
 
   const createProc = Bun.spawn(createCmd, {
-    cwd: parentDir,
+    cwd: projectPath, // Run from within the project directory
     stdout: "inherit",
     stderr: "inherit",
   });
@@ -558,6 +562,11 @@ async function createMonorepoProject(
   console.log(chalk.gray("  [2/8] Creating web app with shadcn..."));
   const webPath = join(projectPath, "apps", "web");
 
+  // Create web directory first to avoid shadcn scanning parent dirs
+  if (!existsSync(webPath)) {
+    mkdirSync(webPath, { recursive: true });
+  }
+
   // Check if we need workaround for Bun on Windows with spaces in path
   const { pm: createPm, usingWorkaround } = getShadcnCreatePackageManager(
     projectPath,
@@ -577,11 +586,11 @@ async function createMonorepoProject(
     template: "next",
     theme,
     font,
-    projectName: "web",
+    projectName: ".", // Use "." to create in current directory
   });
 
   const createProc = Bun.spawn(createCmd, {
-    cwd: join(projectPath, "apps"),
+    cwd: webPath, // Run from within the web directory
     stdout: "inherit",
     stderr: "inherit",
   });

@@ -20,7 +20,7 @@ import { openCommand } from "./commands/open.js";
 import { goCommand } from "./commands/go.js";
 import { ralphCommand } from "./commands/ralph.js";
 
-const VERSION = "0.1.1-beta";
+const VERSION = "0.1.2-beta";
 
 const program = new Command();
 
