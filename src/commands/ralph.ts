@@ -26,54 +26,50 @@ import { spawn } from "child_process";
 
 const DEFAULT_MODELS = [
   {
-    value: "anthropic/claude-sonnet-4",
-    label: "Claude Sonnet 4 (Anthropic)",
-    description: "Latest Claude model",
+    value: "minimax/MiniMax-M2.1",
+    label: "MiniMax M2.1",
+    description: "Fast reasoning model (MiniMax)",
   },
   {
-    value: "anthropic/claude-opus-4",
-    label: "Claude Opus 4 (Anthropic)",
-    description: "High-performance Claude",
+    value: "opencode/zen",
+    label: "OpenCode Zen",
+    description: "OpenCode's native model",
   },
   {
-    value: "anthropic/claude-haiku-3-5",
-    label: "Claude Haiku 3.5 (Anthropic)",
-    description: "Fast, lightweight",
-  },
-  {
-    value: "openai/gpt-4o",
-    label: "GPT-4o (OpenAI)",
-    description: "Omni model from OpenAI",
-  },
-  {
-    value: "openai/gpt-4o-mini",
-    label: "GPT-4o Mini (OpenAI)",
-    description: "Fast, cost-effective",
-  },
-  {
-    value: "google/gemini-2.0-flash",
-    label: "Gemini 2.0 Flash (Google)",
+    value: "google/gemini-3-flash",
+    label: "Gemini 3 Flash (Antigravity)",
     description: "Fast Google model",
   },
   {
-    value: "google/gemini-1.5-pro",
-    label: "Gemini 1.5 Pro (Google)",
-    description: "Long context Google model",
+    value: "google/gemini-3-pro",
+    label: "Gemini 3 Pro High (Antigravity)",
+    description: "High-performance Google model",
   },
   {
-    value: "xai/grok-2",
-    label: "Grok-2 (xAI)",
-    description: "xAI's Grok model",
+    value: "anthropic/claude-opus-4.5-thinking",
+    label: "Claude Opus 4.5 Thinking (Antigravity)",
+    description: "Advanced reasoning with thinking",
   },
+  {
+    value: "anthropic/claude-sonnet-4",
+    label: "Claude Sonnet 4",
+    description: "Latest Claude model (Anthropic)",
+  },
+  {
+    value: "anthropic/claude-opus-4",
+    label: "Claude Opus 4",
+    description: "High-performance Claude (Anthropic)",
+  },
+  {
+    value: "openai/gpt-4o",
+    label: "GPT-4o",
+    description: "Omni model (OpenAI)",
+  },
+  { value: "xai/grok-2", label: "Grok-2", description: "xAI's Grok model" },
   {
     value: "deepseek/deepseek-chat",
-    label: "DeepSeek Chat",
+    label: "DeepSeek V3",
     description: "DeepSeek V3",
-  },
-  {
-    value: "minimax/MiniMax-M2.1",
-    label: "MiniMax M2.1",
-    description: "Fast reasoning model",
   },
 ];
 
@@ -182,7 +178,7 @@ async function selectModel(): Promise<string | null> {
     choices.push({
       value: saved.model,
       label: `🔄 ${saved.name}`,
-      hint: "上次使用的模型",
+      hint: "Last used model",
     });
   }
 
@@ -198,8 +194,8 @@ async function selectModel(): Promise<string | null> {
   // Add custom option
   choices.push({
     value: "__custom__",
-    label: "✏️  输入自定义模型",
-    hint: "输入 provider/model 格式",
+    label: "✏️  Enter custom model",
+    hint: "Type provider/model format",
   });
 
   const result = await p.select({
@@ -214,11 +210,11 @@ async function selectModel(): Promise<string | null> {
 
   if (result === "__custom__") {
     const customModel = await p.text({
-      message: "输入模型名称 (格式: provider/model):",
+      message: "Enter model name (format: provider/model):",
       placeholder: "anthropic/claude-sonnet-4",
       validate: (value) => {
         if (!value.includes("/")) {
-          return "请输入完整的模型名称，格式为 provider/model";
+          return "Please enter full model name in provider/model format";
         }
         return undefined;
       },
