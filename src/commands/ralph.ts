@@ -1601,6 +1601,17 @@ async function installRalphy() {
     'local opencode_args="--format json"\n          if [[ -n "$OPENCODE_MODEL" ]]; then\n            opencode_args="$opencode_args --model $OPENCODE_MODEL"\n          fi\n          OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n            $opencode_args \\\n            "$prompt"';
   scriptContent = scriptContent.replace(oldParallel, newParallel);
 
+  // 6. Add .ralphy to PATH for yq.exe on Windows
+  const oldPathConfig = "DRY_RUN=false\nMAX_ITERATIONS=0  # 0 = unlimited";
+  const newPathConfig = `DRY_RUN=false
+MAX_ITERATIONS=0  # 0 = unlimited
+
+# Windows: Add .ralphy to PATH for yq.exe
+if [[ -f "$HOME/.ralphy/yq.exe" ]]; then
+  export PATH="$HOME/.ralphy:$PATH"
+fi`;
+  scriptContent = scriptContent.replace(oldPathConfig, newPathConfig);
+
   await Bun.write(RALPHY_SCRIPT, scriptContent);
   console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
 
