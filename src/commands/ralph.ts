@@ -1778,40 +1778,59 @@ fi`;
   console.log(chalk.green(`  ✓ Created ${RALPHY_CMD}`));
 
   // =====================================================
-  // INSTALL YQ.PS1 (AV-Safe YAML Parser)
+  // INSTALL YQ.SH (AV-Safe YAML Parser)
   // Bundled with devkitx - no external download needed
+  // Pure-bash implementation that doesn't trigger AV alerts
   // =====================================================
-  console.log(chalk.gray("  Installing yq.ps1 (AV-safe YAML parser)..."));
-  const yqPs1Path = join(RALPHY_DIR, "yq.ps1");
+  console.log(chalk.gray("  Installing yq.sh (AV-safe YAML parser)..."));
+  const yqShPath = join(RALPHY_DIR, "yq");
+  const bundledYqShPath = join(__dirname, "..", "..", "scripts", "yq.sh");
 
-  // Always copy from devkitx bundled yq.ps1
-  // Note: __dirname in compiled bun executable is the directory containing the exe
-  // For devkitx, scripts are at the project root /scripts
-  const bundledYqPath = join(__dirname, "..", "..", "scripts", "yq.ps1");
-
-  if (existsSync(bundledYqPath)) {
-    await Bun.write(yqPs1Path, await Bun.file(bundledYqPath).text());
-    console.log(
-      chalk.green(`  ✓ Installed yq.ps1 (PowerShell-based YAML parser)`),
-    );
+  if (existsSync(bundledYqShPath)) {
+    await Bun.write(yqShPath, await Bun.file(bundledYqShPath).text());
+    console.log(chalk.green(`  ✓ Installed yq.sh (Pure-bash YAML parser)`));
   } else {
     throw new Error(
-      `[CRITICAL] yq.ps1 not found at ${bundledYqPath}\nThis file MUST be bundled with devkitx for YAML parsing to work.`,
+      `[CRITICAL] yq.sh not found at ${bundledYqShPath}\nThis file MUST be bundled with devkitx for YAML parsing to work.`,
     );
   }
 
-  // Create yq.cmd that calls PowerShell with yq.ps1
-  const yqCmdContent = `@powershell -ExecutionPolicy Bypass -File "%USERPROFILE%\\.ralphy\\yq.ps1" %*
-`;
+  // Create yq.cmd that calls bash with yq.sh (Windows CMD compatible)
+  const yqCmdContent =
+    "@powershell -ExecutionPolicy Bypass -Command \"$bash = if (Test-Path '$env:USERPROFILE\\scoop\\shims\\bash.exe') { '$env:USERPROFILE\\scoop\\shims\\bash.exe' } elseif (Test-Path '$env:ProgramFiles\\Git\\bin\\bash.exe') { '$env:ProgramFiles\\Git\\bin\\bash.exe' } else { '$env:ProgramFiles(x86)\\Git\\bin\\bash.exe' }; $env:HOME = '$env:USERPROFILE'; & $bash '\"$env:USERPROFILE/.ralphy/yq\"' %*\"\n";
   await Bun.write(join(RALPHY_DIR, "yq.cmd"), yqCmdContent);
-  console.log(chalk.green(`  ✓ Created yq.cmd wrapper`));
+  console.log(chalk.green(`  ✓ Created yq.cmd wrapper (calls bash)`));
 
-  // Also create a batch file that PowerShell can find
+  // Create yq.bat that calls bash with yq.sh (alternative)
   const yqBatchContent = `@echo off
-REM yq-compatible wrapper using PowerShell (avoids curl dependency)
-powershell.exe -ExecutionPolicy Bypass -File "%~dp0yq.ps1" %*
+REM yq-compatible wrapper using bash (AV-safe alternative)
+REM This avoids using yq.exe which triggers security alerts
+setlocal
+set "BASH=%USERPROFILE%\scoop\shims\bash.exe"
+if not exist "%BASH%" set "BASH=%ProgramFiles%\Git\bin\bash.exe"
+if not exist "%BASH%" set "BASH=%ProgramFiles(x86)%\Git\bin\bash.exe"
+set "HOME=%USERPROFILE%"
+"%BASH%" -c "'%USERPROFILE%/.ralphy/yq' %*"
+endlocal
+exit /b %errorlevel%
 `;
   await Bun.write(join(RALPHY_DIR, "yq.bat"), yqBatchContent);
+  console.log(chalk.green(`  ✓ Created yq.bat wrapper (calls bash)`));
+
+  // Disable any existing yq.exe to prevent AV alerts
+  const yqExePath = join(RALPHY_DIR, "yq.exe");
+  if (existsSync(yqExePath)) {
+    try {
+      const yqExeDisabled = join(RALPHY_DIR, "yq.exe.disabled");
+      if (existsSync(yqExeDisabled)) {
+        Bun.write(yqExeDisabled, ""); // Truncate if exists
+      }
+      await Bun.rename(yqExePath, yqExeDisabled);
+      console.log(chalk.yellow(`  ⚠ Disabled yq.exe (AV-safe)`));
+    } catch (e) {
+      console.log(chalk.yellow(`  ⚠ Could not disable yq.exe: ${e}`));
+    }
+  }
 
   // Copy hook scripts to .ralphy/scripts/
   console.log(chalk.gray("  Installing hook scripts..."));

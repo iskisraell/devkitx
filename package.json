@@ -1,6 +1,6 @@
 {
   "name": "devkitx",
-  "version": "0.1.2-beta",
+  "version": "0.2.0-beta",
   "description": "Developer toolkit CLI for modern web development with Next.js, Vite, Expo, Turborepo, Convex, Supabase, and more. Includes Ralphy integration for autonomous AI coding loops.",
   "author": "Israel Toledo",
   "license": "MIT",
