@@ -1612,6 +1612,31 @@ async function installRalphy() {
   await Bun.write(RALPHY_CMD, cmdContent);
   console.log(chalk.green(`  ✓ Created ${RALPHY_CMD}`));
 
+  // Install yq for YAML parsing (Windows)
+  console.log(chalk.gray("  Installing yq for YAML parsing..."));
+  const yqPath = join(RALPHY_DIR, "yq.exe");
+  try {
+    const yqResponse = await fetch(
+      "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe",
+    );
+    if (yqResponse.ok) {
+      await Bun.write(yqPath, await yqResponse.arrayBuffer());
+      console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
+    } else {
+      console.log(
+        chalk.yellow(
+          "  ⚠ Could not download yq, manual installation may be required",
+        ),
+      );
+    }
+  } catch {
+    console.log(
+      chalk.yellow(
+        "  ⚠ yq download failed, manual installation may be required",
+      ),
+    );
+  }
+
   return { ralphyDir: RALPHY_DIR };
 }
 
