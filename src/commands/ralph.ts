@@ -1543,28 +1543,20 @@ async function initRalph(projectPath: string, options: { force?: boolean }) {
 }
 
 async function installRalphy() {
-  process.stderr.write("[DEBUG] installRalphy() called\n");
-
   // Create .ralphy directory
   if (!existsSync(RALPHY_DIR)) {
     mkdirSync(RALPHY_DIR, { recursive: true });
   }
 
   // Download ralphy.sh
-  process.stderr.write("  [DEBUG] About to fetch ralphy.sh\n");
+  console.log(chalk.gray("  Downloading ralphy.sh..."));
   const response = await fetch(
     "https://raw.githubusercontent.com/michaelshimeles/ralphy/main/ralphy.sh",
-  );
-  process.stderr.write(
-    "  [DEBUG] Fetch completed, status: " + response.status + "\n",
   );
   if (!response.ok) {
     throw new Error(`Failed to download: ${response.statusText}`);
   }
   let scriptContent = await response.text();
-  process.stderr.write(
-    "  [DEBUG] Script length: " + scriptContent.length + "\n",
-  );
 
   // Apply MSYS2 fix: disable set -euo pipefail for Windows Git Bash compatibility
   console.log(chalk.gray("  Applying MSYS2 compatibility fix..."));
@@ -1574,9 +1566,6 @@ async function installRalphy() {
       /^set -euo pipefail$/m,
       "# set -euo pipefail  # Disabled for MSYS2/Git Bash Windows compatibility",
     );
-    console.log("  ✓ MSYS2 fix applied");
-  } else {
-    console.log("  ⚠ MSYS2 fix not needed");
   }
 
   // Apply OpenCode --model support fix
@@ -1588,9 +1577,6 @@ async function installRalphy() {
       'AI_ENGINE="claude"',
       'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen\nOPENCODE_MODEL=""   # Model to use with OpenCode (format: provider/model)',
     );
-    console.log("  ✓ OPENCODE_MODEL variable added");
-  } else {
-    console.log("  ⚠ AI_ENGINE line not found");
   }
 
   // 2. Add --model to help text
@@ -1599,7 +1585,6 @@ async function installRalphy() {
       "  --qwen              Use Qwen-Code\n",
       "  --qwen              Use Qwen-Code\n  --model MODEL       Model for OpenCode (e.g., minimax/MiniMax-M2.1)\n",
     );
-    console.log("  ✓ --model help text added");
   }
 
   // 3. Add --model parsing
@@ -1612,7 +1597,6 @@ async function installRalphy() {
       '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --dry-run)',
       '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --model)\n        OPENCODE_MODEL="${2:-}"\n        shift 2\n        ;;\n      --dry-run)',
     );
-    console.log("  ✓ --model parsing added");
   }
 
   // 4. Update run_ai_command() for OpenCode
@@ -1631,7 +1615,6 @@ async function installRalphy() {
         \$opencode_args \\
         "\$prompt" > "\$output_file" 2>\&1 \&`,
     );
-    console.log("  ✓ run_ai_command() updated");
   }
 
   // 5. Update parallel execution run_parallel_agent() for OpenCode
@@ -1650,7 +1633,6 @@ async function installRalphy() {
             \$opencode_args \\
             "\$prompt"`,
     );
-    console.log("  ✓ parallel execution updated");
   }
 
   // 6. Add .ralphy to PATH for yq.exe on Windows
@@ -1668,7 +1650,6 @@ if [[ -f "$HOME/.ralphy/yq.exe" ]]; then
   export PATH="$HOME/.ralphy:$PATH"
 fi`,
     );
-    console.log("  ✓ PATH config added");
   }
 
   // 7. Add hook support
@@ -1684,7 +1665,6 @@ fi`,
 
   # Cleanup worktree base`,
     );
-    console.log("  ✓ Hook support added");
   }
 
   await Bun.write(RALPHY_SCRIPT, scriptContent);
