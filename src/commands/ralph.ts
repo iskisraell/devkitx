@@ -1556,167 +1556,217 @@ async function installRalphy() {
   if (!response.ok) {
     throw new Error(`Failed to download: ${response.statusText}`);
   }
-  let scriptContent = await response.text();
+  let script = await response.text();
 
-  // Apply MSYS2 fix: disable set -euo pipefail for Windows Git Bash compatibility
-  console.log(chalk.gray("  Applying MSYS2 compatibility fix..."));
-  const msys2Match = scriptContent.match(/^set -euo pipefail$/m);
-  if (msys2Match) {
-    scriptContent = scriptContent.replace(
-      /^set -euo pipefail$/m,
-      "# set -euo pipefail  # Disabled for MSYS2/Git Bash Windows compatibility",
+  // =====================================================
+  // ROBUST PATCHING SYSTEM
+  // Uses reliable pattern matching with verification
+  // =====================================================
+
+  console.log(chalk.gray("  Applying patches..."));
+
+  // PATCH 1: Add OPENCODE_MODEL variable after AI_ENGINE
+  const aiEngineLine =
+    'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen';
+  const opencodeModelLine =
+    'OPENCODE_MODEL=""   # Model for OpenCode (e.g., minimax/MiniMax-M2.1)';
+  if (script.includes(opencodeModelLine)) {
+    console.log(
+      chalk.gray(`  - Skipped: OPENCODE_MODEL variable (already applied)`),
+    );
+  } else if (script.includes(aiEngineLine)) {
+    const before = script.length;
+    script = script.replace(
+      aiEngineLine,
+      aiEngineLine + "\n" + opencodeModelLine,
+    );
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: OPENCODE_MODEL variable`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: OPENCODE_MODEL variable`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find AI_ENGINE line to patch`,
     );
   }
 
-  // Apply OpenCode --model support fix
-  console.log(chalk.gray("  Adding OpenCode --model support..."));
+  // PATCH 2: Add --model MODEL to help text
+  const qwenHelpLine = "  --qwen              Use Qwen-Code";
+  const modelHelpLine =
+    "  --model MODEL       Model for OpenCode (e.g., minimax/MiniMax-M2.1)";
+  if (script.includes(modelHelpLine)) {
+    console.log(chalk.gray(`  - Skipped: --model help text (already applied)`));
+  } else if (script.includes(qwenHelpLine)) {
+    const before = script.length;
+    script = script.replace(qwenHelpLine, qwenHelpLine + "\n" + modelHelpLine);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: --model help text`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: --model help text`);
+    }
+  } else {
+    throw new Error(`[CRITICAL] PATCH FAILED: Could not find --qwen help line`);
+  }
 
-  // 1. Add OPENCODE_MODEL variable after AI_ENGINE line
-  if (scriptContent.includes('AI_ENGINE="claude"')) {
-    scriptContent = scriptContent.replace(
-      'AI_ENGINE="claude"',
-      'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen\nOPENCODE_MODEL=""   # Model to use with OpenCode (format: provider/model)',
+  // PATCH 3: Add --model argument parsing
+  const qwenCaseBlock = `      --qwen)
+        AI_ENGINE="qwen"
+        shift
+        ;;
+      --dry-run)`;
+  const modelCaseBlock = `      --qwen)
+        AI_ENGINE="qwen"
+        shift
+        ;;
+      --model)
+        OPENCODE_MODEL="\${2:-}"
+        shift 2
+        ;;
+      --dry-run)`;
+  if (script.includes('OPENCODE_MODEL="${2:-}"')) {
+    console.log(
+      chalk.gray(`  - Skipped: --model argument parsing (already applied)`),
+    );
+  } else if (script.includes(qwenCaseBlock)) {
+    const before = script.length;
+    script = script.replace(qwenCaseBlock, modelCaseBlock);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: --model argument parsing`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: --model argument parsing`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find --qwen case block`,
     );
   }
 
-  // 2. Add --model to help text
-  if (scriptContent.includes("  --qwen              Use Qwen-Code\n")) {
-    scriptContent = scriptContent.replace(
-      "  --qwen              Use Qwen-Code\n",
-      "  --qwen              Use Qwen-Code\n  --model MODEL       Model for OpenCode (e.g., minimax/MiniMax-M2.1)\n",
-    );
-  }
-
-  // 3. Add --model parsing
-  if (
-    scriptContent.includes(
-      '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;',
-    )
-  ) {
-    scriptContent = scriptContent.replace(
-      '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --dry-run)',
-      '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --model)\n        OPENCODE_MODEL="${2:-}"\n        shift 2\n        ;;\n      --dry-run)',
-    );
-  }
-
-  // 4. Update run_ai_command() for OpenCode
-  if (
-    scriptContent.includes(
-      'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\',
-    )
-  ) {
-    scriptContent = scriptContent.replace(
-      /OPENCODE_PERMISSION='\{\"\*\":\"allow\"\}' opencode run \\\n\s+--format json \\\n\s+"\$prompt" > "\$output_file" 2>\&1 \&/g,
-      `local opencode_args="--format json"
+  // PATCH 4: Update run_ai_command() for OpenCode
+  const opencodeOldCmd = `OPENCODE_PERMISSION='{"*":"allow"}' opencode run \\
+        --format json \\
+        "$prompt"`;
+  const opencodeNewCmd = `local opencode_args="--format json"
       if [[ -n "\$OPENCODE_MODEL" ]]; then
         opencode_args="\$opencode_args --model \$OPENCODE_MODEL"
       fi
       OPENCODE_PERMISSION='{"*":"allow"}' opencode run \\
         \$opencode_args \\
-        "\$prompt" > "\$output_file" 2>\&1 \&`,
+        "\$prompt"`;
+  if (script.includes(opencodeNewCmd)) {
+    console.log(
+      chalk.gray(`  - Skipped: run_ai_command() with model (already applied)`),
+    );
+  } else if (script.includes(opencodeOldCmd)) {
+    const before = script.length;
+    script = script.replace(opencodeOldCmd, opencodeNewCmd);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: run_ai_command() with model`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: run_ai_command() with model`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find opencode run command`,
     );
   }
 
-  // 5. Update parallel execution run_parallel_agent() for OpenCode
-  if (
-    scriptContent.includes(
-      'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\',
-    )
-  ) {
-    scriptContent = scriptContent.replace(
-      /OPENCODE_PERMISSION='\{\"\*\":\"allow\"\}' opencode run \\\n\s+--format json \\\n\s+"\$prompt"/g,
-      `local opencode_args="--format json"
-          if [[ -n "\$OPENCODE_MODEL" ]]; then
-            opencode_args="\$opencode_args --model \$OPENCODE_MODEL"
+  // PATCH 5: Update parallel execution for OpenCode
+  // Match the opencode case block in run_parallel_agent
+  const parallelOldBlock = `        (
+          cd "$worktree_dir"
+          OPENCODE_PERMISSION='{"*":"allow"}' opencode run \\
+            --format json \\
+            "$prompt"
+        ) > "$tmpfile" 2>>"$log_file"`;
+  const parallelNewBlock = `        (
+          cd "$worktree_dir"
+          # OpenCode parallel execution with model
+          local opencode_args="--format json"
+          if [[ -n "$OPENCODE_MODEL" ]]; then
+            opencode_args="$opencode_args --model $OPENCODE_MODEL"
           fi
           OPENCODE_PERMISSION='{"*":"allow"}' opencode run \\
-            \$opencode_args \\
-            "\$prompt"`,
+            $opencode_args \\
+            "$prompt"
+        ) > "$tmpfile" 2>>"$log_file"`;
+  if (script.includes("# OpenCode parallel execution with model")) {
+    console.log(
+      chalk.gray(
+        `  - Skipped: parallel execution with model (already applied)`,
+      ),
+    );
+  } else if (script.includes(parallelOldBlock)) {
+    const before = script.length;
+    script = script.replace(parallelOldBlock, parallelNewBlock);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: parallel execution with model`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: parallel execution with model`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find parallel opencode block`,
     );
   }
 
-  // 6. Add .ralphy to PATH for yq.exe on Windows
-  if (
-    scriptContent.includes("DRY_RUN=false") &&
-    scriptContent.includes("MAX_ITERATIONS=0")
-  ) {
-    scriptContent = scriptContent.replace(
-      "DRY_RUN=false\nMAX_ITERATIONS=0",
-      `DRY_RUN=false
-MAX_ITERATIONS=0
+  // PATCH 6: Disable MSYS2 set -euo pipefail
+  if (script.includes("# set -euo pipefail")) {
+    console.log(
+      chalk.gray(`  - Skipped: MSYS2 compatibility (already applied)`),
+    );
+  } else if (script.includes("set -euo pipefail")) {
+    const before = script.length;
+    script = script.replace(
+      "set -euo pipefail",
+      "# set -euo pipefail  # Disabled for MSYS2/Git Bash Windows compatibility",
+    );
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: MSYS2 compatibility`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: MSYS2 compatibility`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find set -euo pipefail`,
+    );
+  }
 
-# Windows: Add .ralphy to PATH for yq.exe
-if [[ -f "$HOME/.ralphy/yq.exe" ]]; then
+  // PATCH 7: Add .ralphy to PATH for yq.ps1
+  const dryRunLine = "DRY_RUN=false";
+  const maxIterLine = "MAX_ITERATIONS=0  # 0 = unlimited";
+  const pathBlock = `DRY_RUN=false
+MAX_ITERATIONS=0  # 0 = unlimited
+
+# Windows: Add .ralphy to PATH for yq.ps1
+if [[ -f "$HOME/.ralphy/yq.ps1" ]]; then
   export PATH="$HOME/.ralphy:$PATH"
-fi`,
+fi`;
+  if (script.includes(".ralphy/yq.ps1")) {
+    console.log(chalk.gray(`  - Skipped: PATH for yq.ps1 (already applied)`));
+  } else if (script.includes(dryRunLine) && script.includes(maxIterLine)) {
+    const before = script.length;
+    script = script.replace(dryRunLine + "\n" + maxIterLine, pathBlock);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: PATH for yq.ps1`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: PATH for yq.ps1`);
+    }
+  } else {
+    throw new Error(
+      `[CRITICAL] PATCH FAILED: Could not find DRY_RUN/MAX_ITERATIONS lines`,
     );
   }
 
-  // 7. Add hook support
-  if (scriptContent.includes("# Cleanup worktree base")) {
-    scriptContent = scriptContent.replace(
-      "# Cleanup worktree base",
-      `# Hook: Call mark-group-complete after batch
-  local group_hook="\${SCRIPT_DIR:-"$HOME/.ralphy"}/scripts/mark-group-complete.sh"
-  if [[ -f "\$group_hook" ]]; then
-    log_info "Calling group completion hook..."
-    "\$group_hook" "\$group" 2>/dev/null || true
-  fi
-
-  # Cleanup worktree base`,
-    );
-  }
-
-  await Bun.write(RALPHY_SCRIPT, scriptContent);
-  console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
-
-  // 1. Add OPENCODE_MODEL variable after AI_ENGINE line
-  const oldAIEngine = 'AI_ENGINE="claude"';
-  const newAIEngine =
-    'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen\nOPENCODE_MODEL=""   # Model to use with OpenCode (format: provider/model)';
-  scriptContent = scriptContent.replace(oldAIEngine, newAIEngine);
-
-  // 2. Add --model to help text
-  const oldHelpQwen = "  --qwen              Use Qwen-Code\n";
-  const newHelpQwen =
-    "  --qwen              Use Qwen-Code\n  --model MODEL       Model for OpenCode (e.g., minimax/MiniMax-M2.1)\n";
-  scriptContent = scriptContent.replace(oldHelpQwen, newHelpQwen);
-
-  // 3. Add --model parsing
-  const oldParse =
-    '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --dry-run)';
-  const newParse =
-    '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --model)\n        OPENCODE_MODEL="${2:-}"\n        shift 2\n        ;;\n      --dry-run)';
-  scriptContent = scriptContent.replace(oldParse, newParse);
-
-  // 4. Update run_ai_command() for OpenCode
-  const oldOpencodeCmd =
-    'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n        --format json \\\n        "$prompt" > "$output_file" 2>&1 &';
-  const newOpencodeCmd =
-    'local opencode_args="--format json"\n      if [[ -n "$OPENCODE_MODEL" ]]; then\n        opencode_args="$opencode_args --model $OPENCODE_MODEL"\n      fi\n      OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n        $opencode_args \\\n        "$prompt" > "$output_file" 2>&1 &';
-  scriptContent = scriptContent.replace(oldOpencodeCmd, newOpencodeCmd);
-
-  // 5. Update parallel execution run_parallel_agent() for OpenCode
-  const oldParallel =
-    'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n            --format json \\\n            "$prompt"';
-  const newParallel =
-    'local opencode_args="--format json"\n          if [[ -n "$OPENCODE_MODEL" ]]; then\n            opencode_args="$opencode_args --model $OPENCODE_MODEL"\n          fi\n          OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n            $opencode_args \\\n            "$prompt"';
-  scriptContent = scriptContent.replace(oldParallel, newParallel);
-
-  // 6. Add .ralphy to PATH for yq.exe on Windows
-  const oldPathConfig = "DRY_RUN=false\nMAX_ITERATIONS=0  # 0 = unlimited";
-  const newPathConfig =
-    'DRY_RUN=false\nMAX_ITERATIONS=0  # 0 = unlimited\n\n# Windows: Add .ralphy to PATH for yq.exe\nif [[ -f "$HOME/.ralphy/yq.exe" ]]; then\n  export PATH="$HOME/.ralphy:$PATH"\nfi';
-  scriptContent = scriptContent.replace(oldPathConfig, newPathConfig);
-
-  // 7. Add hook support for automated group progression
-  const oldCleanupSection =
-    "# Cleanup worktree base\n  if ! find \"$WORKTREE_BASE\" -maxdepth 1 -type d -name 'agent-*' -print -quit 2>/dev/null | grep -q .; then";
-  const newCleanupSection =
-    '# Hook: Call mark-group-complete after batch\n  local group_hook="${SCRIPT_DIR:-"$HOME/.ralphy"}/scripts/mark-group-complete.sh"\n  if [[ -f "$group_hook" ]] && [[ "$batch_start" -ge "$total_group_tasks" ]]; then\n    log_info "Calling group completion hook..."\n    "$group_hook" "$group" 2>/dev/null || true\n  fi\n\n  # Cleanup worktree base\n  if ! find "$WORKTREE_BASE" -maxdepth 1 -type d -name \'agent-*\' -print -quit 2>/dev/null | grep -q .; then';
-  scriptContent = scriptContent.replace(oldCleanupSection, newCleanupSection);
-
-  await Bun.write(RALPHY_SCRIPT, scriptContent);
+  // Write the patched script
+  await Bun.write(RALPHY_SCRIPT, script);
   console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
 
   // Create PowerShell wrapper (ralphy.ps1) - already exists from earlier
@@ -1727,76 +1777,41 @@ fi`,
   await Bun.write(RALPHY_CMD, cmdContent);
   console.log(chalk.green(`  ✓ Created ${RALPHY_CMD}`));
 
-  // Install yq for YAML parsing (Windows) using PowerShell to avoid AV false positives
-  console.log(chalk.gray("  Installing yq for YAML parsing..."));
-  const yqPath = join(RALPHY_DIR, "yq.exe");
+  // =====================================================
+  // INSTALL YQ.PS1 (AV-Safe YAML Parser)
+  // Bundled with devkitx - no external download needed
+  // =====================================================
+  console.log(chalk.gray("  Installing yq.ps1 (AV-safe YAML parser)..."));
+  const yqPs1Path = join(RALPHY_DIR, "yq.ps1");
 
-  try {
-    // Use PowerShell to download - avoids curl.exe trigger that AV flags
-    const psScript = `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe" -OutFile "${yqPath}"`;
-    const { spawn } = await import("child_process");
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn(
-        "powershell.exe",
-        ["-ExecutionPolicy", "Bypass", "-Command", psScript],
-        {
-          stdio: "pipe",
-        },
-      );
-      let stderr = "";
-      proc.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-      proc.on("close", (code) => {
-        if (code === 0 && existsSync(yqPath)) {
-          console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
-          resolve();
-        } else {
-          console.log(
-            chalk.yellow(
-              `  ⚠ yq download failed (exit code: ${code}), trying alternative...`,
-            ),
-          );
-          reject(new Error("PowerShell download failed"));
-        }
-      });
-    });
-  } catch {
-    // Fallback: try with built-in fetch
-    console.log(chalk.gray("  Trying alternative download method..."));
-    try {
-      const yqResponse = await fetch(
-        "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe",
-      );
-      if (yqResponse.ok) {
-        await Bun.write(yqPath, await yqResponse.arrayBuffer());
-        console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
-      } else {
-        console.log(
-          chalk.yellow(
-            "  ⚠ Could not download yq. Manual installation required:",
-          ),
-        );
-        console.log(
-          chalk.cyan(
-            `  Download from: https://github.com/mikefarah/yq/releases/latest`,
-          ),
-        );
-        console.log(chalk.cyan(`  Save as: ${yqPath}`));
-      }
-    } catch {
-      console.log(
-        chalk.yellow("  ⚠ yq download failed. Manual installation required:"),
-      );
-      console.log(
-        chalk.cyan(
-          `  1. Download: https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe`,
-        ),
-      );
-      console.log(chalk.cyan(`  2. Save as: ${yqPath}`));
-      console.log(chalk.cyan(`  3. Or ask IT to whitelist: ${RALPHY_DIR}`));
-    }
+  // Always copy from devkitx bundled yq.ps1
+  // Note: __dirname in compiled bun executable is the directory containing the exe
+  // For devkitx, scripts are at the project root /scripts
+  const bundledYqPath = join(__dirname, "..", "..", "scripts", "yq.ps1");
+
+  if (existsSync(bundledYqPath)) {
+    await Bun.write(yqPs1Path, await Bun.file(bundledYqPath).text());
+    console.log(
+      chalk.green(`  ✓ Installed yq.ps1 (PowerShell-based YAML parser)`),
+    );
+  } else {
+    throw new Error(
+      `[CRITICAL] yq.ps1 not found at ${bundledYqPath}\nThis file MUST be bundled with devkitx for YAML parsing to work.`,
+    );
   }
+
+  // Create yq.cmd that calls PowerShell with yq.ps1
+  const yqCmdContent = `@powershell -ExecutionPolicy Bypass -File "%USERPROFILE%\\.ralphy\\yq.ps1" %*
+`;
+  await Bun.write(join(RALPHY_DIR, "yq.cmd"), yqCmdContent);
+  console.log(chalk.green(`  ✓ Created yq.cmd wrapper`));
+
+  // Also create a batch file that PowerShell can find
+  const yqBatchContent = `@echo off
+REM yq-compatible wrapper using PowerShell (avoids curl dependency)
+powershell.exe -ExecutionPolicy Bypass -File "%~dp0yq.ps1" %*
+`;
+  await Bun.write(join(RALPHY_DIR, "yq.bat"), yqBatchContent);
 
   // Copy hook scripts to .ralphy/scripts/
   console.log(chalk.gray("  Installing hook scripts..."));
