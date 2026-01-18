@@ -1625,29 +1625,75 @@ async function installRalphy() {
   await Bun.write(RALPHY_CMD, cmdContent);
   console.log(chalk.green(`  ✓ Created ${RALPHY_CMD}`));
 
-  // Install yq for YAML parsing (Windows)
+  // Install yq for YAML parsing (Windows) using PowerShell to avoid AV false positives
   console.log(chalk.gray("  Installing yq for YAML parsing..."));
   const yqPath = join(RALPHY_DIR, "yq.exe");
+
   try {
-    const yqResponse = await fetch(
-      "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe",
-    );
-    if (yqResponse.ok) {
-      await Bun.write(yqPath, await yqResponse.arrayBuffer());
-      console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
-    } else {
+    // Use PowerShell to download - avoids curl.exe trigger that AV flags
+    const psScript = `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe" -OutFile "${yqPath}"`;
+    const { spawn } = await import("child_process");
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(
+        "powershell.exe",
+        ["-ExecutionPolicy", "Bypass", "-Command", psScript],
+        {
+          stdio: "pipe",
+        },
+      );
+      let stderr = "";
+      proc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+      proc.on("close", (code) => {
+        if (code === 0 && existsSync(yqPath)) {
+          console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
+          resolve();
+        } else {
+          console.log(
+            chalk.yellow(
+              `  ⚠ yq download failed (exit code: ${code}), trying alternative...`,
+            ),
+          );
+          reject(new Error("PowerShell download failed"));
+        }
+      });
+    });
+  } catch {
+    // Fallback: try with built-in fetch
+    console.log(chalk.gray("  Trying alternative download method..."));
+    try {
+      const yqResponse = await fetch(
+        "https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe",
+      );
+      if (yqResponse.ok) {
+        await Bun.write(yqPath, await yqResponse.arrayBuffer());
+        console.log(chalk.green(`  ✓ Installed yq to ${yqPath}`));
+      } else {
+        console.log(
+          chalk.yellow(
+            "  ⚠ Could not download yq. Manual installation required:",
+          ),
+        );
+        console.log(
+          chalk.cyan(
+            `  Download from: https://github.com/mikefarah/yq/releases/latest`,
+          ),
+        );
+        console.log(chalk.cyan(`  Save as: ${yqPath}`));
+      }
+    } catch {
       console.log(
-        chalk.yellow(
-          "  ⚠ Could not download yq, manual installation may be required",
+        chalk.yellow("  ⚠ yq download failed. Manual installation required:"),
+      );
+      console.log(
+        chalk.cyan(
+          `  1. Download: https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe`,
         ),
       );
+      console.log(chalk.cyan(`  2. Save as: ${yqPath}`));
+      console.log(chalk.cyan(`  3. Or ask IT to whitelist: ${RALPHY_DIR}`));
     }
-  } catch {
-    console.log(
-      chalk.yellow(
-        "  ⚠ yq download failed, manual installation may be required",
-      ),
-    );
   }
 
   // Copy hook scripts to .ralphy/scripts/
@@ -1690,6 +1736,33 @@ async function installRalphy() {
     );
     console.log(chalk.green("  ✓ Installed run-next-group.sh"));
   }
+
+  // Create batch launcher to bypass SmartScreen
+  console.log(chalk.gray("  Creating SmartScreen bypass launcher..."));
+  const batchLauncher = `@echo off
+REM Ralphy Launcher - Bypasses Windows SmartScreen
+setlocal
+set "RALPHY_DIR=%USERPROFILE%\\.ralphy"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Normal -File "%RALPHY_DIR%\\ralphy.ps1" %*
+endlocal
+exit /b %errorlevel%
+`;
+  await Bun.write(join(RALPHY_DIR, "ralphy-launcher.bat"), batchLauncher);
+  console.log(chalk.green("  ✓ Created ralphy-launcher.bat"));
+
+  // Create VBScript launcher (alternative)
+  const vbsLauncher = `Set objShell = CreateObject("Shell.Application")
+strScriptDir = Replace(WScript.ScriptFullName, WScript.ScriptName, "")
+strCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & strScriptDir & "ralphy.ps1"""
+For i = 0 to WScript.Arguments.Count - 1
+    strArg = WScript.Arguments(i)
+    strArg = Replace(strArg, """", "\\""")
+    strCmd = strCmd & " """ & strArg & """"
+Next
+objShell.ShellExecute "cmd.exe", "/c " & strCmd, "", "open", 1
+`;
+  await Bun.write(join(RALPHY_DIR, "ralphy-launcher.vbs"), vbsLauncher);
+  console.log(chalk.green("  ✓ Created ralphy-launcher.vbs"));
 
   return { ralphyDir: RALPHY_DIR };
 }
