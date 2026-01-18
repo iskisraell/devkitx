@@ -11,8 +11,271 @@ import { Command } from "commander";
 import * as p from "@clack/prompts";
 import chalk from "chalk";
 import { join, basename } from "path";
-import { existsSync, mkdirSync, readdirSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "fs";
 import { spawn } from "child_process";
+
+// ============================================================================
+// MODEL SELECTOR FOR OPENCODE
+// ============================================================================
+
+const DEFAULT_MODELS = [
+  {
+    value: "anthropic/claude-sonnet-4",
+    label: "Claude Sonnet 4 (Anthropic)",
+    description: "Latest Claude model",
+  },
+  {
+    value: "anthropic/claude-opus-4",
+    label: "Claude Opus 4 (Anthropic)",
+    description: "High-performance Claude",
+  },
+  {
+    value: "anthropic/claude-haiku-3-5",
+    label: "Claude Haiku 3.5 (Anthropic)",
+    description: "Fast, lightweight",
+  },
+  {
+    value: "openai/gpt-4o",
+    label: "GPT-4o (OpenAI)",
+    description: "Omni model from OpenAI",
+  },
+  {
+    value: "openai/gpt-4o-mini",
+    label: "GPT-4o Mini (OpenAI)",
+    description: "Fast, cost-effective",
+  },
+  {
+    value: "google/gemini-2.0-flash",
+    label: "Gemini 2.0 Flash (Google)",
+    description: "Fast Google model",
+  },
+  {
+    value: "google/gemini-1.5-pro",
+    label: "Gemini 1.5 Pro (Google)",
+    description: "Long context Google model",
+  },
+  {
+    value: "xai/grok-2",
+    label: "Grok-2 (xAI)",
+    description: "xAI's Grok model",
+  },
+  {
+    value: "deepseek/deepseek-chat",
+    label: "DeepSeek Chat",
+    description: "DeepSeek V3",
+  },
+  {
+    value: "minimax/MiniMax-M2.1",
+    label: "MiniMax M2.1",
+    description: "Fast reasoning model",
+  },
+];
+
+const MODEL_CONFIG_FILE = join(
+  process.env.USERPROFILE || "",
+  ".devkitx",
+  "ralphy-model.json",
+);
+
+interface SavedModel {
+  name: string;
+  model: string;
+  lastUsed: string;
+}
+
+// Get saved model from config
+function getSavedModel(): SavedModel | null {
+  try {
+    if (existsSync(MODEL_CONFIG_FILE)) {
+      const content = readFileSync(MODEL_CONFIG_FILE, "utf-8");
+      return JSON.parse(content);
+    }
+  } catch {
+    // Ignore errors
+  }
+  return null;
+}
+
+// Save model to config
+function saveModel(name: string, model: string): void {
+  try {
+    const dir = join(process.env.USERPROFILE || "", ".devkitx");
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const saved: SavedModel = {
+      name,
+      model,
+      lastUsed: new Date().toISOString(),
+    };
+    writeFileSync(MODEL_CONFIG_FILE, JSON.stringify(saved, null, 2), "utf-8");
+  } catch {
+    // Ignore errors
+  }
+}
+
+// Fetch models from OpenCode CLI
+async function fetchOpenCodeModels(): Promise<string[]> {
+  return new Promise((resolve) => {
+    const proc = spawn("opencode", ["models", "--refresh"], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let output = "";
+    proc.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.stderr.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.on("close", () => {
+      // Parse models from output
+      const models: string[] = [];
+      const lines = output.split("\n");
+      for (const line of lines) {
+        // Look for provider/model format
+        const match = line.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/);
+        if (match) {
+          const model = match[1];
+          if (!models.includes(model)) {
+            models.push(model);
+          }
+        }
+      }
+      resolve(models);
+    });
+
+    proc.on("error", () => {
+      resolve([]);
+    });
+  });
+}
+
+// Interactive model selector
+async function selectModel(): Promise<string | null> {
+  console.log();
+  p.intro(chalk.bgCyan(chalk.black(" Select OpenCode Model ")));
+
+  // Get saved model
+  const saved = getSavedModel();
+  if (saved) {
+    console.log(chalk.gray(`  Last used: ${saved.name} (${saved.model})`));
+  }
+
+  console.log();
+  console.log(chalk.white("  Select a model for OpenCode:"));
+  console.log();
+
+  // Combine default models with options
+  const choices: Array<{ value: string; label: string; hint?: string }> = [];
+
+  // Add saved model as first option if exists
+  if (saved) {
+    choices.push({
+      value: saved.model,
+      label: `🔄 ${saved.name}`,
+      hint: "上次使用的模型",
+    });
+  }
+
+  // Add common models
+  for (const model of DEFAULT_MODELS) {
+    choices.push({
+      value: model.value,
+      label: model.value,
+      hint: model.description,
+    });
+  }
+
+  // Add custom option
+  choices.push({
+    value: "__custom__",
+    label: "✏️  输入自定义模型",
+    hint: "输入 provider/model 格式",
+  });
+
+  const result = await p.select({
+    message: "选择模型:",
+    options: choices,
+  });
+
+  if (p.isCancel(result) || !result) {
+    p.cancel("已取消");
+    return null;
+  }
+
+  if (result === "__custom__") {
+    const customModel = await p.text({
+      message: "输入模型名称 (格式: provider/model):",
+      placeholder: "anthropic/claude-sonnet-4",
+      validate: (value) => {
+        if (!value.includes("/")) {
+          return "请输入完整的模型名称，格式为 provider/model";
+        }
+        return undefined;
+      },
+    });
+
+    if (p.isCancel(customModel) || !customModel) {
+      p.cancel("已取消");
+      return null;
+    }
+
+    // Save custom model
+    const name = await p.text({
+      message: "为此模型命名以便保存:",
+      placeholder: "My Custom Model",
+    });
+
+    if (!p.isCancel(name) && name) {
+      saveModel(name, customModel);
+    }
+
+    return customModel;
+  }
+
+  // Save selected model
+  const modelInfo = DEFAULT_MODELS.find((m) => m.value === result);
+  if (modelInfo) {
+    saveModel(modelInfo.label, result);
+  } else if (saved && saved.model === result) {
+    // Keep existing name
+  }
+
+  return result;
+}
+
+// Check if model is configured in OpenCode
+async function checkModelAvailable(model: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn("opencode", ["auth", "list"], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let output = "";
+    proc.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.on("close", () => {
+      // Check if provider is in the auth list
+      const provider = model.split("/")[0];
+      resolve(output.toLowerCase().includes(provider.toLowerCase()));
+    });
+
+    proc.on("error", () => {
+      resolve(true); // Assume available if we can't check
+    });
+  });
+}
 
 // ============================================================================
 // COMPREHENSIVE DOCUMENTATION
@@ -1428,6 +1691,8 @@ async function runRalphy(options: {
   maxIterations?: number;
   dryRun?: boolean;
   verbose?: boolean;
+  model?: string;
+  selectModel?: boolean;
 }) {
   // Check if ralphy.sh is installed
   if (!existsSync(RALPHY_SCRIPT)) {
@@ -1447,8 +1712,24 @@ async function runRalphy(options: {
     process.exit(1);
   }
 
+  // Model selection (interactive)
+  let selectedModel: string | undefined = options.model;
+  if (options.selectModel && !selectedModel) {
+    const model = await selectModel();
+    if (model) {
+      selectedModel = model;
+    } else {
+      return; // User cancelled
+    }
+  }
+
   // Build arguments
   const args: string[] = ["--opencode"];
+
+  // Add model if selected
+  if (selectedModel) {
+    args.push("--model", selectedModel);
+  }
 
   if (options.yaml) {
     args.push("--yaml", options.yaml);
@@ -1497,6 +1778,9 @@ async function runRalphy(options: {
   console.log();
   console.log(chalk.cyan("  RALPHY - Autonomous AI Coding Loop"));
   console.log(chalk.gray(`  Engine: OpenCode`));
+  if (selectedModel) {
+    console.log(chalk.cyan(`  Model: ${selectedModel}`));
+  }
   console.log(chalk.gray(`  PRD: ${options.yaml || options.prd || "PRD.md"}`));
   if (options.parallel) {
     console.log(
@@ -1651,6 +1935,8 @@ ralphCommand
   .description("Run Ralphy with OpenCode")
   .option("--prd <file>", "PRD file path (default: PRD.md)")
   .option("--yaml <file>", "Use YAML task file instead")
+  .option("--model <model>", "OpenCode model to use (provider/model)")
+  .option("--select-model", "Interactive model selector")
   .option("--parallel", "Run tasks in parallel using git worktrees")
   .option("--max-parallel <n>", "Max concurrent agents (default: 3)", parseInt)
   .option("--fast", "Skip tests and linting")
