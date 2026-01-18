@@ -1556,16 +1556,52 @@ async function installRalphy() {
   if (!response.ok) {
     throw new Error(`Failed to download: ${response.statusText}`);
   }
-  let script = await response.text();
+  let scriptContent = await response.text();
 
   // Apply MSYS2 fix: disable set -euo pipefail for Windows Git Bash compatibility
   console.log(chalk.gray("  Applying MSYS2 compatibility fix..."));
-  script = script.replace(
-    /^set -euo pipefail$/m,
+  scriptContent = scriptContent.replace(
+    /^set -euo pipefail$/,
     "# set -euo pipefail  # Disabled for MSYS2/Git Bash Windows compatibility",
   );
 
-  await Bun.write(RALPHY_SCRIPT, script);
+  // Apply OpenCode --model support fix
+  console.log(chalk.gray("  Adding OpenCode --model support..."));
+
+  // 1. Add OPENCODE_MODEL variable after AI_ENGINE line
+  const oldAIEngine = 'AI_ENGINE="claude"';
+  const newAIEngine =
+    'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen\nOPENCODE_MODEL=""   # Model to use with OpenCode (format: provider/model)';
+  scriptContent = scriptContent.replace(oldAIEngine, newAIEngine);
+
+  // 2. Add --model to help text
+  const oldHelpQwen = "  --qwen              Use Qwen-Code\n";
+  const newHelpQwen =
+    "  --qwen              Use Qwen-Code\n  --model MODEL       Model for OpenCode (e.g., minimax/MiniMax-M2.1)\n";
+  scriptContent = scriptContent.replace(oldHelpQwen, newHelpQwen);
+
+  // 3. Add --model parsing
+  const oldParse =
+    '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --dry-run)';
+  const newParse =
+    '      --qwen)\n        AI_ENGINE="qwen"\n        shift\n        ;;\n      --model)\n        OPENCODE_MODEL="${2:-}"\n        shift 2\n        ;;\n      --dry-run)';
+  scriptContent = scriptContent.replace(oldParse, newParse);
+
+  // 4. Update run_ai_command() for OpenCode
+  const oldOpencodeCmd =
+    'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n        --format json \\\n        "$prompt" > "$output_file" 2>&1 &';
+  const newOpencodeCmd =
+    'local opencode_args="--format json"\n      if [[ -n "$OPENCODE_MODEL" ]]; then\n        opencode_args="$opencode_args --model $OPENCODE_MODEL"\n      fi\n      OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n        $opencode_args \\\n        "$prompt" > "$output_file" 2>&1 &';
+  scriptContent = scriptContent.replace(oldOpencodeCmd, newOpencodeCmd);
+
+  // 5. Update parallel execution run_parallel_agent() for OpenCode
+  const oldParallel =
+    'OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n            --format json \\\n            "$prompt"';
+  const newParallel =
+    'local opencode_args="--format json"\n          if [[ -n "$OPENCODE_MODEL" ]]; then\n            opencode_args="$opencode_args --model $OPENCODE_MODEL"\n          fi\n          OPENCODE_PERMISSION=\'{"*":"allow"}\' opencode run \\\n            $opencode_args \\\n            "$prompt"';
+  scriptContent = scriptContent.replace(oldParallel, newParallel);
+
+  await Bun.write(RALPHY_SCRIPT, scriptContent);
   console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
 
   // Create PowerShell wrapper (ralphy.ps1) - already exists from earlier
