@@ -79,6 +79,55 @@ export const createCommand = new Command("create")
 
       logger.setVerbose(options.verbose ?? false);
 
+      // ============================================================================
+      // LUCIDE-REACT COMPATIBILITY FIX
+      // Downgrade lucide-react to v0.475.0 to avoid ESBuild resolution errors
+      // See: https://github.com/lucide-icons/lucide/issues/XXXX
+      // ============================================================================
+
+      async function fixLucideReactVersion(
+        projectPath: string,
+        packageManager: string,
+      ): Promise<void> {
+        console.log(
+          chalk.gray("  [Fix] Applying lucide-react v0.475.0 fix..."),
+        );
+
+        const downgradeCmd =
+          packageManager === "bun"
+            ? ["bun", "add", "lucide-react@0.475.0"]
+            : packageManager === "pnpm"
+              ? ["pnpm", "add", "lucide-react@0.475.0"]
+              : ["npm", "install", "lucide-react@0.475.0"];
+
+        const proc = Bun.spawn(downgradeCmd, {
+          cwd: projectPath,
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+
+        const output = await new Response(proc.stdout).text();
+        await proc.exited;
+
+        if (proc.exitCode === 0) {
+          console.log(
+            chalk.green(
+              "  [Fix] ✓ Downgraded lucide-react to v0.475.0 (ESBuild compatibility)",
+            ),
+          );
+        } else {
+          console.log(
+            chalk.yellow(
+              "  [Fix] ⚠ Could not downgrade lucide-react (may already be correct version)",
+            ),
+          );
+        }
+      }
+
+      // ============================================================================
+      // PROJECT CREATION FLOW
+      // ============================================================================
+
       // ========================================
       // STEP 1: Get project name
       // ========================================
@@ -493,6 +542,9 @@ async function createSingleProject(
     ...CORE_DEPENDENCIES,
   ]);
   console.log(chalk.green("  [2/6] ✓ Core utilities installed"));
+
+  // Fix: Downgrade lucide-react to v0.475.0 for ESBuild compatibility
+  await fixLucideReactVersion(projectPath, packageManager);
 
   // Step 3: Install state manager
   if (stateManager !== "none") {

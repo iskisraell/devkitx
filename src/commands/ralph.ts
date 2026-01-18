@@ -199,7 +199,7 @@ async function selectModel(): Promise<string | null> {
   });
 
   const result = await p.select({
-    message: "选择模型:",
+    message: "Select a model:",
     options: choices,
   });
 
