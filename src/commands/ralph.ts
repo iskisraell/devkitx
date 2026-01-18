@@ -1168,14 +1168,19 @@ ralphy --opencode --dry-run
 | Test | \`{{TEST_COMMAND}}\` |
 | Build | \`{{BUILD_COMMAND}}\` |
 
-## PRD Files Location
+## PRD Files Location & Source of Truth
 
-All Product Requirement Documents are in \`docs/prd/\`.
+All Product Requirement Documents are in docs/prd/.
+
+**Source of Truth:** While tasks.yaml serves as the roadmap blueprint for tracking progress across features, individual .prd.md files in docs/prd/ are the absolute source of truth for implementation details, acceptance criteria, and progress tracking.
+
+For YAML mode tasks:
+1. Read docs/prd/*.prd.md files for detailed implementation context
+2. Update the Progress section in each .prd.md after completing milestones
+3. Update the completed status in tasks.yaml accordingly
 
 Create PRDs with:
-\`\`\`bash
-dx ralph new my-feature
-\`\`\`
+  dx ralph new my-feature
 
 ---
 
@@ -1313,6 +1318,21 @@ Only output the completion promise when:
 2. Tests pass
 3. Type check passes
 4. Build succeeds (if applicable)
+
+## SOURCE OF TRUTH (PRD)
+
+While tasks.yaml is the roadmap blueprint, .prd.md files in docs/prd/ are the absolute source of truth for implementation details.
+
+After completing milestones:
+
+1. Update the Progress section in the relevant .prd.md file
+2. Update the completed true/false status in tasks.yaml
+3. Document key decisions and outcomes in the PRD's Progress section
+
+When working with YAML tasks:
+- Read the corresponding .prd.md for full context before implementing
+- Cross-reference acceptance criteria in the PRD
+- Mark tasks complete in both places
 
 ---
 
@@ -1566,20 +1586,37 @@ async function installRalphy() {
   console.log(chalk.gray("  Applying patches..."));
 
   // PATCH 1: Add OPENCODE_MODEL variable after AI_ENGINE
-  const aiEngineLine =
-    'AI_ENGINE="claude"  # claude, opencode, cursor, codex, or qwen';
+  // Use multiple patterns to handle different comment variations in ralphy.sh versions
+  const aiEnginePattern1 = /^AI_ENGINE="claude".*$/m;
+  const aiEnginePattern2 = /^\s*AI_ENGINE="claude".*$/m;
+  const aiEnginePattern3 = /AI_ENGINE="claude"\s*#/m;
   const opencodeModelLine =
     'OPENCODE_MODEL=""   # Model for OpenCode (e.g., minimax/MiniMax-M2.1)';
   if (script.includes(opencodeModelLine)) {
     console.log(
       chalk.gray(`  - Skipped: OPENCODE_MODEL variable (already applied)`),
     );
-  } else if (script.includes(aiEngineLine)) {
+  } else if (aiEnginePattern1.test(script)) {
     const before = script.length;
-    script = script.replace(
-      aiEngineLine,
-      aiEngineLine + "\n" + opencodeModelLine,
-    );
+    script = script.replace(aiEnginePattern1, `$&\n${opencodeModelLine}`);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: OPENCODE_MODEL variable`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: OPENCODE_MODEL variable`);
+    }
+  } else if (aiEnginePattern2.test(script)) {
+    const before = script.length;
+    script = script.replace(aiEnginePattern2, `$&\n${opencodeModelLine}`);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: OPENCODE_MODEL variable`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: OPENCODE_MODEL variable`);
+    }
+  } else if (aiEnginePattern3.test(script)) {
+    const before = script.length;
+    script = script.replace(aiEnginePattern3, `${opencodeModelLine}\n&`);
     const after = script.length;
     if (after > before) {
       console.log(chalk.green(`  ✓ Patched: OPENCODE_MODEL variable`));
@@ -1612,11 +1649,8 @@ async function installRalphy() {
   }
 
   // PATCH 3: Add --model argument parsing
-  const qwenCaseBlock = `      --qwen)
-        AI_ENGINE="qwen"
-        shift
-        ;;
-      --dry-run)`;
+  // The --qwen block may be followed by --droid or other options
+  const qwenCaseBlockPattern = new RegExp("--qwen\\)[\\s\\S]*?--dry-run\\)");
   const modelCaseBlock = `      --qwen)
         AI_ENGINE="qwen"
         shift
@@ -1630,9 +1664,9 @@ async function installRalphy() {
     console.log(
       chalk.gray(`  - Skipped: --model argument parsing (already applied)`),
     );
-  } else if (script.includes(qwenCaseBlock)) {
+  } else if (qwenCaseBlockPattern.test(script)) {
     const before = script.length;
-    script = script.replace(qwenCaseBlock, modelCaseBlock);
+    script = script.replace(qwenCaseBlockPattern, modelCaseBlock);
     const after = script.length;
     if (after > before) {
       console.log(chalk.green(`  ✓ Patched: --model argument parsing`));
@@ -1762,6 +1796,48 @@ fi`;
   } else {
     throw new Error(
       `[CRITICAL] PATCH FAILED: Could not find DRY_RUN/MAX_ITERATIONS lines`,
+    );
+  }
+
+  // PATCH 8: Inject enhanced YAML mode prompt for PRD source of truth
+  // Modify the build_prompt function's yaml case to include enhanced instructions
+  const yamlCaseOldBlock = `    yaml)
+      prompt="@\${PRD_FILE} @progress.txt"
+      ;;
+    github)`;
+  const yamlCaseNewBlock = `    yaml)
+      # YAML mode: enhanced instructions for source of truth
+      prompt="@\${PRD_FILE} @progress.txt @AGENTS.md @.ralph/signs.md
+
+## SOURCE OF TRUTH
+While tasks.yaml is the roadmap blueprint, .prd.md files in docs/prd/ are the absolute source of truth for implementation details and acceptance criteria.
+
+## YOUR APPROACH FOR YAML TASKS
+1. Read the relevant .prd.md file in docs/prd/ for full context
+2. Cross-reference acceptance criteria in the PRD
+3. Implement the task according to PRD specifications
+4. Update BOTH the .prd.md Progress section AND tasks.yaml completed status
+5. Document key decisions and outcomes in the PRD's Progress section"
+      ;;
+    github)`;
+  if (script.includes("## SOURCE OF TRUTH")) {
+    console.log(
+      chalk.gray(`  - Skipped: Enhanced YAML prompt (already applied)`),
+    );
+  } else if (script.includes(yamlCaseOldBlock)) {
+    const before = script.length;
+    script = script.replace(yamlCaseOldBlock, yamlCaseNewBlock);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: Enhanced YAML mode prompt`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: Enhanced YAML prompt`);
+    }
+  } else {
+    console.log(
+      chalk.yellow(
+        `  - Skipped: Enhanced YAML prompt (build_prompt yaml case not found)`,
+      ),
     );
   }
 
