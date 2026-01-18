@@ -1603,14 +1603,16 @@ async function installRalphy() {
 
   // 6. Add .ralphy to PATH for yq.exe on Windows
   const oldPathConfig = "DRY_RUN=false\nMAX_ITERATIONS=0  # 0 = unlimited";
-  const newPathConfig = `DRY_RUN=false
-MAX_ITERATIONS=0  # 0 = unlimited
-
-# Windows: Add .ralphy to PATH for yq.exe
-if [[ -f "$HOME/.ralphy/yq.exe" ]]; then
-  export PATH="$HOME/.ralphy:$PATH"
-fi`;
+  const newPathConfig =
+    'DRY_RUN=false\nMAX_ITERATIONS=0  # 0 = unlimited\n\n# Windows: Add .ralphy to PATH for yq.exe\nif [[ -f "$HOME/.ralphy/yq.exe" ]]; then\n  export PATH="$HOME/.ralphy:$PATH"\nfi';
   scriptContent = scriptContent.replace(oldPathConfig, newPathConfig);
+
+  // 7. Add hook support for automated group progression
+  const oldCleanupSection =
+    "# Cleanup worktree base\n  if ! find \"$WORKTREE_BASE\" -maxdepth 1 -type d -name 'agent-*' -print -quit 2>/dev/null | grep -q .; then";
+  const newCleanupSection =
+    '# Hook: Call mark-group-complete after batch\n  local group_hook="${SCRIPT_DIR:-"$HOME/.ralphy"}/scripts/mark-group-complete.sh"\n  if [[ -f "$group_hook" ]] && [[ "$batch_start" -ge "$total_group_tasks" ]]; then\n    log_info "Calling group completion hook..."\n    "$group_hook" "$group" 2>/dev/null || true\n  fi\n\n  # Cleanup worktree base\n  if ! find "$WORKTREE_BASE" -maxdepth 1 -type d -name \'agent-*\' -print -quit 2>/dev/null | grep -q .; then';
+  scriptContent = scriptContent.replace(oldCleanupSection, newCleanupSection);
 
   await Bun.write(RALPHY_SCRIPT, scriptContent);
   console.log(chalk.green(`  ✓ Installed ${RALPHY_SCRIPT}`));
@@ -1646,6 +1648,47 @@ fi`;
         "  ⚠ yq download failed, manual installation may be required",
       ),
     );
+  }
+
+  // Copy hook scripts to .ralphy/scripts/
+  console.log(chalk.gray("  Installing hook scripts..."));
+  const scriptsDir = join(RALPHY_DIR, "scripts");
+  if (!existsSync(scriptsDir)) {
+    mkdirSync(scriptsDir, { recursive: true });
+  }
+
+  // Copy mark-group-complete.sh
+  const markCompleteSrc = join(
+    process.cwd(),
+    "scripts",
+    "mark-group-complete.sh",
+  );
+  if (existsSync(markCompleteSrc)) {
+    await Bun.write(
+      join(scriptsDir, "mark-group-complete.sh"),
+      await Bun.file(markCompleteSrc).text(),
+    );
+    console.log(chalk.green("  ✓ Installed mark-group-complete.sh"));
+  }
+
+  // Copy rebase-and-continue.sh
+  const rebaseSrc = join(process.cwd(), "scripts", "rebase-and-continue.sh");
+  if (existsSync(rebaseSrc)) {
+    await Bun.write(
+      join(scriptsDir, "rebase-and-continue.sh"),
+      await Bun.file(rebaseSrc).text(),
+    );
+    console.log(chalk.green("  ✓ Installed rebase-and-continue.sh"));
+  }
+
+  // Copy run-next-group.sh
+  const runNextSrc = join(process.cwd(), "scripts", "run-next-group.sh");
+  if (existsSync(runNextSrc)) {
+    await Bun.write(
+      join(scriptsDir, "run-next-group.sh"),
+      await Bun.file(runNextSrc).text(),
+    );
+    console.log(chalk.green("  ✓ Installed run-next-group.sh"));
   }
 
   return { ralphyDir: RALPHY_DIR };
