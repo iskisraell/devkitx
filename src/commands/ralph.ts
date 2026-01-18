@@ -1801,32 +1801,92 @@ fi`;
 
   // PATCH 8: Inject enhanced YAML mode prompt for PRD source of truth
   // Modify the build_prompt function's yaml case to include enhanced instructions
-  const yamlCaseOldBlock = `    yaml)
+  // Handle both old pattern (@progress.txt) and new pattern (@$PROGRESS_FILE)
+  const yamlCaseOldBlockPattern1 = `    yaml)
       prompt="@\${PRD_FILE} @progress.txt"
       ;;
     github)`;
-  const yamlCaseNewBlock = `    yaml)
-      # YAML mode: enhanced instructions for source of truth
-      prompt="@\${PRD_FILE} @progress.txt @AGENTS.md @.ralph/signs.md
-
-## SOURCE OF TRUTH
-While tasks.yaml is the roadmap blueprint, .prd.md files in docs/prd/ are the absolute source of truth for implementation details and acceptance criteria.
-
-## YOUR APPROACH FOR YAML TASKS
-1. Read the relevant .prd.md file in docs/prd/ for full context
-2. Cross-reference acceptance criteria in the PRD
-3. Implement the task according to PRD specifications
-4. Update BOTH the .prd.md Progress section AND tasks.yaml completed status
-5. Document key decisions and outcomes in the PRD's Progress section"
+  const yamlCaseOldBlockPattern2 = `    yaml)
+      prompt="@\${PRD_FILE} @\$PROGRESS_FILE"
       ;;
     github)`;
-  if (script.includes("## SOURCE OF TRUTH")) {
+  const yamlCaseNewBlock = `    yaml)
+      # YAML mode: enhanced instructions for PRD-first methodology
+      prompt="@\${PRD_FILE} @\$PROGRESS_FILE @AGENTS.md @.ralph/signs.md
+
+## EXECUTION PROTOCOL - YAML TASK MODE
+
+### 1. MULTI-DOC CONTEXT INITIALIZATION
+At the start of EVERY session, you MUST read:
+- @AGENTS.md - Project overview, stack, and development guidelines
+- @.ralph/signs.md - Project-specific rules and patterns
+- @project.yaml - Technology stack and configuration
+
+### 2. LOCATE THE ABSOLUTE TRUTH
+1. Find the highest-priority incomplete task in \${PRD_FILE} (tasks.yaml)
+2. Locate the \`prd_file\` field in that task - this points to your .prd.md file
+3. OPEN and READ the corresponding .prd.md file - this is your ABSOLUTE SOURCE OF TRUTH
+4. The PRD's Goal and Acceptance Criteria supersede all other instructions
+
+### 3. INCREMENTAL VALIDATION (REAL-TIME)
+As you implement, UPDATE the .prd.md file IMMEDIATELY:
+- Change acceptance criteria checkboxes from [ ] to [x] as each is satisfied
+- Do NOT wait until the end - update checkboxes during implementation
+
+### 4. NARRATIVE PROGRESS TRACKING
+After each milestone, LOG in the .prd.md Progress section:
+- What was implemented in this iteration
+- Architectural decisions made
+- Verification results (test output, lint results)
+- Any blockers or challenges encountered
+
+Format:
+### Iteration N - YYYY-MM-DD
+- **Summary:** Brief description of work done
+- **Decisions:** Key architectural choices
+- **Verification:** Test results and output
+- **Status:** In Progress / Blocked / Complete
+
+### 5. ROADMAP SYNCHRONIZATION
+Only mark \`completed: true\` in tasks.yaml when:
+- ALL acceptance criteria in .prd.md are checked [x]
+- All tests pass
+- Type check passes
+- Build succeeds
+
+### 6. STRICT FAILURE HANDLING
+If tests, lint, or type check FAILS:
+- DO NOT update .prd.md checkboxes
+- DO NOT mark task complete in tasks.yaml
+- Fix or revert the implementation until verification passes
+- Document the failure in the Progress section
+
+### 7. COMPLETION SIGNAL
+Output <promise>COMPLETE</promise> ONLY when:
+- All .prd.md acceptance criteria are checked [x]
+- .prd.md Progress section is fully documented
+- tasks.yaml task is marked \`completed: true\`
+- All verifications pass (typecheck, test, build)
+
+## REMEMBER: The .prd.md is your source of truth, tasks.yaml is just the roadmap tracker."
+      ;;
+    github)`;
+  if (script.includes("## EXECUTION PROTOCOL - YAML TASK MODE")) {
     console.log(
       chalk.gray(`  - Skipped: Enhanced YAML prompt (already applied)`),
     );
-  } else if (script.includes(yamlCaseOldBlock)) {
+  } else if (script.includes(yamlCaseOldBlockPattern2)) {
     const before = script.length;
-    script = script.replace(yamlCaseOldBlock, yamlCaseNewBlock);
+    script = script.replace(yamlCaseOldBlockPattern2, yamlCaseNewBlock);
+    const after = script.length;
+    if (after > before) {
+      console.log(chalk.green(`  ✓ Patched: Enhanced YAML mode prompt`));
+    } else {
+      throw new Error(`[CRITICAL] PATCH FAILED: Enhanced YAML prompt`);
+    }
+  } else if (script.includes(yamlCaseOldBlockPattern1)) {
+    const before = script.length;
+    script = script.replace(yamlCaseOldBlockPattern1, yamlCaseNewBlock);
     const after = script.length;
     if (after > before) {
       console.log(chalk.green(`  ✓ Patched: Enhanced YAML mode prompt`));
